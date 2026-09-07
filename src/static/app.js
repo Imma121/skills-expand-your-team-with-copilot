@@ -363,6 +363,132 @@ document.addEventListener("DOMContentLoaded", () => {
     return "academic";
   }
 
+  function buildActivityShareUrl(activityName) {
+    if (!window.location || !window.location.href) {
+      return "";
+    }
+
+    try {
+      const activityUrl = new URL(window.location.href);
+      activityUrl.searchParams.set("activity", activityName);
+      return activityUrl.toString();
+    } catch (error) {
+      console.error("Error building activity share URL:", error);
+      return "";
+    }
+  }
+
+  function getShareLinks(activityName, activityUrl) {
+    if (!activityUrl) {
+      return null;
+    }
+
+    const shareText = `Check out this activity: ${activityName}`;
+
+    return {
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(
+        `${shareText} ${activityUrl}`
+      )}`,
+      x: `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+        shareText
+      )}&url=${encodeURIComponent(activityUrl)}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+        activityUrl
+      )}`,
+    };
+  }
+
+  function createShareSection(activityName) {
+    const activityUrl = buildActivityShareUrl(activityName);
+    const shareLinks = getShareLinks(activityName, activityUrl);
+
+    if (!shareLinks) {
+      return `
+        <div class="activity-share" aria-label="Share this activity">
+          <h5>Share this activity</h5>
+          <p class="share-unavailable">Share link unavailable right now.</p>
+          <div class="share-buttons">
+            <button type="button" class="share-button" disabled>WhatsApp</button>
+            <button type="button" class="share-button" disabled>X</button>
+            <button type="button" class="share-button" disabled>Facebook</button>
+            <button type="button" class="share-button" disabled>Copy Link</button>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="activity-share" aria-label="Share this activity">
+        <h5>Share this activity</h5>
+        <div class="share-buttons">
+          <a
+            class="share-button"
+            href="${shareLinks.whatsapp}"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Share ${activityName} on WhatsApp"
+          >
+            WhatsApp
+          </a>
+          <a
+            class="share-button"
+            href="${shareLinks.x}"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Share ${activityName} on X"
+          >
+            X
+          </a>
+          <a
+            class="share-button"
+            href="${shareLinks.facebook}"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Share ${activityName} on Facebook"
+          >
+            Facebook
+          </a>
+          <button
+            type="button"
+            class="share-button copy-link-button"
+            data-share-url="${encodeURIComponent(activityUrl)}"
+            aria-label="Copy link for ${activityName}"
+          >
+            Copy Link
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function handleCopyLink(event) {
+    const encodedUrl = event.currentTarget.dataset.shareUrl;
+    const shareUrl = encodedUrl ? decodeURIComponent(encodedUrl) : "";
+
+    if (!shareUrl) {
+      showMessage("Share link is unavailable for this activity.", "info");
+      return;
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const temporaryInput = document.createElement("input");
+        temporaryInput.value = shareUrl;
+        document.body.appendChild(temporaryInput);
+        temporaryInput.select();
+        document.execCommand("copy");
+        document.body.removeChild(temporaryInput);
+      }
+
+      showMessage("Activity link copied to clipboard.", "success");
+    } catch (error) {
+      showMessage("Could not copy the link. Please copy it manually.", "error");
+      console.error("Failed to copy activity link:", error);
+    }
+  }
+
   // Function to fetch activities from API with optional day and time filters
   async function fetchActivities() {
     // Show loading skeletons first
@@ -552,6 +678,7 @@ document.addEventListener("DOMContentLoaded", () => {
             .join("")}
         </ul>
       </div>
+      ${createShareSection(name)}
       <div class="activity-card-actions">
         ${
           currentUser
@@ -585,6 +712,11 @@ document.addEventListener("DOMContentLoaded", () => {
           openRegistrationModal(name);
         });
       }
+    }
+
+    const copyLinkButton = activityCard.querySelector(".copy-link-button");
+    if (copyLinkButton) {
+      copyLinkButton.addEventListener("click", handleCopyLink);
     }
 
     activitiesList.appendChild(activityCard);
